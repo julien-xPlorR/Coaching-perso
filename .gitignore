@@ -1,0 +1,17 @@
+# Dépendances
+node_modules/
+
+# Secrets & config locale
+.env
+
+# Base de données locale
+*.db
+*.sqlite
+
+# Build
+dist/
+
+# Divers
+.DS_Store
+npm-debug.log*
+package-lock.json
