@@ -43,6 +43,9 @@ await db.exec(`
   CREATE TABLE IF NOT EXISTS mealplans (
     start TEXT PRIMARY KEY, label TEXT, data TEXT, updated_at BIGINT
   );
+  CREATE TABLE IF NOT EXISTS programs (
+    start TEXT PRIMARY KEY, label TEXT, data TEXT, updated_at BIGINT
+  );
 `);
 // Migration douce : ajoute fat/muscle aux bases créées avant cette version.
 // (Sur une base neuve, ces colonnes existent déjà -> l'ALTER échoue et est ignoré.)
@@ -127,6 +130,11 @@ app.get("/api/config", h(async (req, res) => {
       if (typeof ath.ftp === "number" && ath.ftp > 0) { out.ftp = ath.ftp; out.ftpEstimated = false; }
       if (ath.firstname) out.firstName = ath.firstname;
     }
+    // Zones de puissance telles que configurées dans Strava (scope profile:read_all).
+    // Absentes chez certains comptes -> le frontend recalcule alors depuis la FTP.
+    const z = await stravaGet("/athlete/zones");
+    const pz = z?.power?.zones;
+    if (Array.isArray(pz) && pz.length) out.powerZones = pz.map((x) => ({ min: x.min, max: x.max }));
   }
   res.json(out);
 }));
@@ -206,6 +214,31 @@ app.post("/api/mealplan/delete", h(async (req, res) => {
   const start = req.body?.start;
   if (!start) return res.status(400).json({ error: "start requis" });
   const info = await db.prepare("DELETE FROM mealplans WHERE start=?").run(start);
+  res.json({ ok: true, deleted: info.changes });
+}));
+
+// Programme d'entraînement : stocké en base (données, plus dans le code).
+// Une semaine = un programme (clé = start, le lundi au format ISO).
+// Volontairement SANS zones ni FTP : elles viennent de Strava (/api/config).
+app.get("/api/program", h(async (req, res) => {
+  const rows = await db.prepare("SELECT data FROM programs ORDER BY start DESC").all();
+  const programs = [];
+  for (const r of rows) { try { programs.push(JSON.parse(r.data)); } catch (e) { /* ignore ligne corrompue */ } }
+  res.json({ programs });
+}));
+app.post("/api/program", h(async (req, res) => {
+  const prog = req.body?.program || req.body;
+  const ok = prog && prog.start && Array.isArray(prog.strength) && prog.strength.length;
+  if (!ok) return res.status(400).json({ error: "programme invalide (start, strength requis)" });
+  await db.prepare(`INSERT INTO programs(start,label,data,updated_at) VALUES(?,?,?,?)
+    ON CONFLICT(start) DO UPDATE SET label=excluded.label, data=excluded.data, updated_at=excluded.updated_at`)
+    .run(prog.start, prog.weekLabel || prog.start, JSON.stringify(prog), Date.now());
+  res.json({ ok: true, start: prog.start });
+}));
+app.post("/api/program/delete", h(async (req, res) => {
+  const start = req.body?.start;
+  if (!start) return res.status(400).json({ error: "start requis" });
+  const info = await db.prepare("DELETE FROM programs WHERE start=?").run(start);
   res.json({ ok: true, deleted: info.changes });
 }));
 

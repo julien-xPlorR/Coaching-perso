@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { DEFAULT_PROGRAM, programList, resolveProgram, validateProgram, buildZones, bikeDurDefault } from "./program.js";
 
 /* =========================================================================
    SOMMET — Suivi Force & Prévention  (v2, données réelles + persistance)
@@ -46,66 +47,17 @@ const DEMO_ACTIVITIES = [
 /* ----------------------- Groupes musculaires --------------------------- */
 const MUSCLES = ["Jambes", "Fessiers", "Ischios", "Dos", "Pectoraux", "Épaules", "Coiffe", "Tronc", "Mollets"];
 
-/* --------------------------- Le plan (3 jours) ------------------------- */
-/* rest = temps de repos prescrit ENTRE LES SÉRIES, en secondes */
-const DAYS = [
-  {
-    id: "j1", title: "Jour 1", subtitle: "Bas du corps",
-    focus: "Force jambes · prévention genou (ITB)",
-    exercises: [
-      { n: "Squat barre", m: "Jambes", sets: 4, reps: 8, base: 72.5, step: 2.5, rest: 150 },
-      { n: "Soulevé de terre roumain", m: "Ischios", sets: 3, reps: 10, base: 60, step: 2.5, rest: 120 },
-      { n: "Split squat bulgare", m: "Fessiers", sets: 3, reps: 10, base: 16, step: 2, rest: 90 },
-      { n: "Abduction de hanche", m: "Fessiers", sets: 3, reps: 15, base: 12, step: 1, rest: 45 },
-      { n: "Mollets debout", m: "Mollets", sets: 4, reps: 15, base: 50, step: 2.5, rest: 60 },
-      { n: "Pallof press (anti-rotation)", m: "Tronc", sets: 3, reps: 12, base: 12, step: 1, rest: 45 },
-    ],
-    cooldown: [
-      "Étirement quadriceps — 2×30 s/côté",
-      "Étirement ischio-jambiers — 2×30 s",
-      "Rouleau bandelette / TFL (face latérale cuisse) — 60 s/côté",
-      "Étirement fléchisseurs de hanche — 2×30 s",
-    ],
-  },
-  {
-    id: "j2", title: "Jour 2", subtitle: "Haut du corps",
-    focus: "Tirer / pousser · prévention épaule (coiffe)",
-    exercises: [
-      { n: "Rowing haltère", m: "Dos", sets: 4, reps: 10, base: 26, step: 2, rest: 90 },
-      { n: "Développé militaire haltères", m: "Épaules", sets: 3, reps: 10, base: 20, step: 1, rest: 120 },
-      { n: "Tirage vertical", m: "Dos", sets: 4, reps: 10, base: 50, step: 2.5, rest: 90 },
-      { n: "Développé couché haltères", m: "Pectoraux", sets: 4, reps: 8, base: 28, step: 2, rest: 120 },
-      { n: "Rotation externe élastique", m: "Coiffe", sets: 3, reps: 15, base: 5, step: 0.5, rest: 45 },
-      { n: "Scapular punch (serratus)", m: "Coiffe", sets: 3, reps: 12, base: 8, step: 1, rest: 45 },
-    ],
-    cooldown: [
-      "Étirement pectoraux (cadre de porte) — 2×30 s",
-      "Étirement grand dorsal — 2×30 s",
-      "Étirement capsule postérieure (cross-body) — 2×30 s",
-      "Pendulaire épaule (relâchement) — 30 s/côté",
-    ],
-  },
-  {
-    id: "j3", title: "Jour 3", subtitle: "Full body · puissance",
-    focus: "Chaîne postérieure · spécifique descente trail",
-    exercises: [
-      { n: "Soulevé de terre (trap bar)", m: "Ischios", sets: 4, reps: 5, base: 100, step: 5, rest: 180 },
-      { n: "Hip thrust", m: "Fessiers", sets: 3, reps: 10, base: 80, step: 5, rest: 120 },
-      { n: "Step-up lesté (contrôle descente)", m: "Jambes", sets: 3, reps: 10, base: 20, step: 2, rest: 90 },
-      { n: "Tirage horizontal poulie", m: "Dos", sets: 4, reps: 10, base: 48, step: 2.5, rest: 90 },
-      { n: "Développé incliné haltères", m: "Pectoraux", sets: 3, reps: 10, base: 24, step: 2, rest: 120 },
-      { n: "Face pull", m: "Épaules", sets: 3, reps: 15, base: 18, step: 1, rest: 45 },
-      { n: "Gainage latéral (gilet lesté)", m: "Tronc", sets: 3, reps: 40, base: 0, step: 2, rest: 60, iso: true },
-    ],
-    cooldown: [
-      "Mobilité hanche 90/90 — 60 s/côté",
-      "Étirement fessier / piriforme — 2×30 s",
-      "Étirement chaîne postérieure — 2×30 s",
-      "Cohérence cardiaque — 5 min",
-    ],
-  },
-];
+/* ============ LE PROGRAMME EST UNE DONNÉE, PLUS DU CODE ================
+   Les séances de la semaine (muscu, vélo, course, planning par défaut)
+   ne sont plus écrites ici : elles viennent de la base (table `programs`,
+   un programme = une semaine), avec le programme embarqué DEFAULT_PROGRAM
+   comme secours si la base est vide. Voir frontend/src/program.js.
+   Les zones de puissance restent hors du JSON : elles sont recalculées
+   depuis la FTP / les zones Strava (buildZones).
+   ====================================================================== */
 
+/* Catalogue d'exercices de remplacement (hors programme : sert à ajouter un
+   exercice à la volée pendant une séance). */
 const EXTRA_EXERCISES = [
   { n: "Presse à cuisses", m: "Jambes", rest: 120 }, { n: "Leg curl", m: "Ischios", rest: 90 },
   { n: "Fentes marchées", m: "Fessiers", rest: 90 }, { n: "Soulevé jambes tendues", m: "Ischios", rest: 120 },
@@ -116,111 +68,7 @@ const EXTRA_EXERCISES = [
   { n: "Mollets assis", m: "Mollets", rest: 60 }, { n: "Copenhagen (adducteurs)", m: "Fessiers", rest: 60 },
 ];
 
-/* ==================== PROGRAMME ENDURANCE (vélo + CAP) =================== */
-/* Bloc courant + cibles calées sur les vraies zones Strava (FTP 300 W).    */
-const BLOCK = {
-  name: "Bloc développement FTP",
-  phase: "post-Étape · fin d'été 2026",
-  note: "Pousser la FTP vers 4 W/kg pendant que le volume de course reste bas. Distribution polarisée : ~80 % facile / ~20 % intensité.",
-  counts: { velo: 3, cap: 2, muscu: 3 },
-};
-
-// Zones de puissance (Coggan, FTP = 300 W) telles que renvoyées par Strava
-const ZONES_W = [
-  { z: "Z1", l: "Récup", r: "< 165 W" }, { z: "Z2", l: "Endurance", r: "166–225" },
-  { z: "Z3", l: "Tempo", r: "226–270" }, { z: "Z4", l: "Seuil", r: "271–315" },
-  { z: "Z5", l: "VO2 / PMA", r: "316–360" }, { z: "Z6", l: "Anaéro.", r: "361–450" },
-];
-
-// Allures cibles course (dérivées des prédictions Strava, tenues volontairement prudentes)
-const PACES = [
-  { k: "Footing facile", v: "6:15–6:45 /km", n: "conversation possible — la priorité" },
-  { k: "Endurance active", v: "5:45–6:05 /km", n: "avec parcimonie, plus tard" },
-  { k: "Seuil (à venir)", v: "5:10–5:25 /km", n: "introduit à l'automne" },
-  { k: "Côtes / descente", v: "à l'effort", n: "marcher les raidillons, descentes en petites foulées" },
-];
-
-const BIKE = [
-  {
-    id: "b1", name: "Seuil", tag: "SPÉCIFIQUE", dur: "1 h 05", defaultMode: "ht",
-    goal: "Élever la puissance soutenable (FTP)",
-    ht: [
-      { t: "15 min", w: "150 → 210 W", d: "Échauffement progressif Z1→Z2, puis 3×(30 s à 300 W / 30 s à 150 W)" },
-      { t: "3 × 10 min", w: "285–300 W · Z4", d: "Seuil. Récup 5 min à 155 W entre les blocs" },
-      { t: "10 min", w: "140 W · Z1", d: "Retour au calme" },
-    ],
-    out: [
-      { t: "15 min", w: "échauffement", d: "Montée progressive + 3 accélérations courtes" },
-      { t: "3 × 10 min", w: "285–300 W · RPE 7–8", d: "Sur une bosse régulière (Maures) ; récup en descente/plat" },
-      { t: "10 min", w: "roue libre", d: "Retour au calme" },
-    ],
-  },
-  {
-    id: "b2", name: "VO2max / PMA", tag: "SPÉCIFIQUE", dur: "1 h 05", defaultMode: "ht",
-    goal: "Élever le plafond aérobie (VO2max / PMA)",
-    ht: [
-      { t: "15 min", w: "échauffement", d: "Z1→Z2 puis 3×1 min montées progressives" },
-      { t: "5 × 3 min", w: "330–345 W · Z5", d: "Récup 3 min à 150 W. Puissance régulière" },
-      { t: "10 min", w: "140 W · Z1", d: "Retour au calme" },
-    ],
-    out: [
-      { t: "15 min", w: "échauffement", d: "Montée en douceur + accélérations" },
-      { t: "5 × 3 min", w: "à bloc maîtrisé · RPE 9", d: "Sur une bosse de 3–5 min ; récup en descente" },
-      { t: "10 min", w: "roue libre", d: "Retour au calme" },
-    ],
-    variant: "Variante : 4 × 4 min à 325–340 W, ou 2 blocs de 6×(30 s 360 W / 30 s 150 W).",
-  },
-  {
-    id: "b3", name: "Sortie longue", tag: "LONGUE", dur: "2 h 30 – 3 h 30", defaultMode: "out",
-    goal: "Base aérobie + endurance spécifique (D+)",
-    out: [
-      { t: "corps", w: "195–220 W · Z2", d: "Endurance continue, cadence souple" },
-      { t: "2–3 bosses", w: "240–290 W · Z3–Z4", d: "Selon terrain (cols des Maures), en tempo/seuil" },
-      { t: "nutrition", w: "60–90 g glucides/h", d: "Dès 2 h de sortie" },
-    ],
-    ht: [
-      { t: "1 h 45", w: "200–215 W · Z2", d: "Endurance continue" },
-      { t: "2 × 15 min", w: "250–260 W · tempo", d: "Récup 5 min entre. 2 h max sur HT" },
-    ],
-  },
-];
-
-const RUN = [
-  {
-    id: "r1", name: "Footing facile + lignes droites", tag: "BASE", dur: "35–45 min",
-    goal: "Base aérobie de course · faible impact",
-    steps: [
-      { t: "30–40 min", p: "6:15–6:45 /km", d: "Allure conversation, terrain plat/roulant" },
-      { t: "4–6 × 20 s", p: "accélérations (strides)", d: "Lignes droites sur plat, récup marche complète" },
-    ],
-  },
-  {
-    id: "r2", name: "Découverte trail / côtes", tag: "SPÉCIFIQUE", dur: "40–50 min",
-    goal: "Spécificité trail (D+, descente) · prudence ITB",
-    steps: [
-      { t: "40–50 min", p: "6:20–7:00 /km", d: "Sentier vallonné (Maures), allure facile" },
-      { t: "montées raides", p: "marche rapide", d: "Power hiking : geste spécifique 60 km, économise le genou" },
-      { t: "descentes", p: "petites foulées", d: "Contrôlées : protège la bandelette (genou D.)" },
-    ],
-  },
-];
-
-// Jours par défaut (0 = Lundi … 6 = Dimanche) — modifiables ensuite dans l'app
-const DEFAULT_DAYS = { j2: 0, r1: 0, b1: 1, j1: 2, b2: 3, r2: 4, j3: 4, b3: 6 };
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
-const ALL_SESSIONS = [
-  { id: "b1", label: "Vélo · Seuil", short: "Vélo Seuil", kind: "velo" },
-  { id: "b2", label: "Vélo · VO2/PMA", short: "Vélo VO2", kind: "velo" },
-  { id: "b3", label: "Vélo · Sortie longue", short: "Vélo Longue", kind: "velo" },
-  { id: "r1", label: "Course · Footing", short: "Run Footing", kind: "cap" },
-  { id: "r2", label: "Course · Trail/côtes", short: "Run Trail", kind: "cap" },
-  { id: "j1", label: "Muscu · Bas", short: "Muscu Bas", kind: "muscu" },
-  { id: "j2", label: "Muscu · Haut", short: "Muscu Haut", kind: "muscu" },
-  { id: "j3", label: "Muscu · Full", short: "Muscu Full", kind: "muscu" },
-];
-// Durées proposées (minutes) pour le vélo en extérieur, selon le type de séance
-const BIKE_DUR = { specific: [75, 90, 105, 120], long: [120, 150, 180, 210, 240] };
-const bikeDurDefault = (id) => (id === "b3" ? 180 : 90);
 
 /* --------------------------- Utilitaires ------------------------------- */
 const r05 = (x) => Math.round(x * 2) / 2;
@@ -645,7 +493,7 @@ function seedHistory() {
     j3: ["2026-06-12", "2026-06-19", "2026-06-26", "2026-07-03"],
   };
   const rows = [];
-  DAYS.forEach((day) => {
+  DEFAULT_PROGRAM.strength.forEach((day) => {
     schedule[day.id].forEach((date, level) => {
       const sets = [];
       day.exercises.forEach((ex) => {
@@ -670,6 +518,7 @@ function volumeByMuscle(sets) { const v = {}; sets.forEach((st) => { v[st.muscle
 const API = ""; // même origine ; proxifié vers le backend en dev
 async function apiGet(path) { const r = await fetch(API + path, { headers: { Accept: "application/json" } }); if (!r.ok) throw new Error(path); return r.json(); }
 async function apiPost(path, body) { const r = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); if (!r.ok) throw new Error(path); return r.json(); }
+async function apiPut(path, body) { const r = await fetch(API + path, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); if (!r.ok) throw new Error(path); return r.json(); }
 
 /* ============================ COMPOSANT ================================= */
 export default function App() {
@@ -684,6 +533,13 @@ export default function App() {
   const [metrics, setMetrics] = useState([]); // suivi quotidien poids + sommeil
   const [cardioDaily, setCardioDaily] = useState(CARDIO_DAILY); // charge cardio/jour (Strava)
   const [mealPlans, setMealPlans] = useState([]); // plans de repas stockés en base (vide = plan par défaut)
+  const [programs, setPrograms] = useState([]);   // programmes stockés en base (vide = DEFAULT_PROGRAM)
+  const [programStart, setProgramStart] = useState(null); // semaine de programme sélectionnée
+
+  // Programme affiché : celui sélectionné, sinon le plus récent en base, sinon le défaut embarqué.
+  const program = useMemo(() => resolveProgram(programs, programStart), [programs, programStart]);
+  // Zones de puissance : recalculées depuis Strava (FTP + zones), jamais depuis le JSON du programme.
+  const zones = useMemo(() => buildZones(cfg.ftp, cfg.powerZones), [cfg.ftp, cfg.powerZones]);
 
   // Police
   useEffect(() => {
@@ -709,6 +565,7 @@ export default function App() {
         try { const a = await apiGet("/api/strava/activities"); if (!cancelled && a.activities) setActivities(a.activities); } catch (e) {}
         try { const L = await apiGet("/api/strava/load"); if (!cancelled && L.daily) setCardioDaily(L.daily.map((x) => ({ date: x.date, re: x.load }))); } catch (e) {}
         try { const mp = await apiGet("/api/mealplan"); if (!cancelled && mp.plans) setMealPlans(mp.plans); } catch (e) {}
+        try { const pg = await apiGet("/api/program"); if (!cancelled && pg.programs) setPrograms(pg.programs); } catch (e) {}
       } catch (e) {
         if (!cancelled) { setHistory(seedHistory()); setMetrics(seedMetrics()); setLive(false); }
       }
@@ -775,7 +632,7 @@ export default function App() {
   const setBikeHours = (id, hours) => savePlan({ ...weekPlan, [id]: { ...(weekPlan[id] || {}), hours } });
   const setSessionDay = (id, day) => savePlan({ ...weekPlan, [id]: { ...(weekPlan[id] || {}), day } });
   const toggleEnduranceDone = (id) => savePlan({ ...weekPlan, [id]: { ...(weekPlan[id] || {}), done: !(weekPlan[id]?.done) } });
-  const resetSchedule = () => { const next = structuredClone(weekPlan); Object.keys(DEFAULT_DAYS).forEach((id) => { next[id] = { ...(next[id] || {}), day: DEFAULT_DAYS[id] }; }); savePlan(next); };
+  const resetSchedule = () => { const next = structuredClone(weekPlan); Object.keys(program.defaultDays).forEach((id) => { next[id] = { ...(next[id] || {}), day: program.defaultDays[id] }; }); savePlan(next); };
 
   /* ---- Suivi quotidien poids + sommeil ---- */
   const saveMetric = (date, patch) => {
@@ -807,6 +664,20 @@ export default function App() {
     if (live) { try { await apiPost("/api/mealplan/delete", { start }); } catch (e) {} }
   };
 
+  /* ---- Programme d'entraînement (même mécanique que les plans de repas) ---- */
+  const saveProgram = async (prog) => {
+    // maj optimiste de l'état local (remplace la semaine de même start)
+    setPrograms((arr) => [prog, ...arr.filter((p) => p.start !== prog.start)]);
+    setProgramStart(prog.start);
+    if (live) { try { await apiPost("/api/program", { program: prog }); return true; } catch (e) { return false; } }
+    return true; // démo : conservé en mémoire (non persisté sans backend)
+  };
+  const deleteProgram = async (start) => {
+    setPrograms((arr) => arr.filter((p) => p.start !== start));
+    setProgramStart(null);
+    if (live) { try { await apiPost("/api/program/delete", { start }); } catch (e) {} }
+  };
+
   /* ---- Stats ---- */
   const wkStart = startOfWeek(TODAY);
   const weekSessions = history.filter((s) => startOfWeek(new Date(s.date)).getTime() === wkStart.getTime());
@@ -830,14 +701,19 @@ export default function App() {
             <Dashboard cfg={cfg} weight={effWeight} wkg={wkg} live={live} activities={activities} metrics={metrics}
               onSaveMetric={saveMetric} onImportMetrics={importMetrics}
               weekCount={weekSessions.length} totalCount={history.length} weekTonnage={weekTonnage} monthPRs={monthPRs}
-              active={active} onStart={startSession} onResume={() => setTab("session")} />
+              active={active} onStart={startSession} onResume={() => setTab("session")} days={program.strength} />
           )}
           {tab === "session" && (
-            <Session active={active} upd={upd} onStartAny={startSession} onFinish={finishSession} onCancel={cancelSession} />
+            <Session active={active} upd={upd} onStartAny={startSession} onFinish={finishSession} onCancel={cancelSession} days={program.strength} />
           )}
           {tab === "history" && <History history={history} />}
           {tab === "progress" && <Progress history={history} weekSessions={weekSessions} seriesFor={seriesFor} prFor={prFor} />}
-          {tab === "programme" && <Programme weekPlan={weekPlan} onSetMode={setBikeMode} onSetHours={setBikeHours} onToggleDone={toggleEnduranceDone} onSetDay={setSessionDay} onResetDays={resetSchedule} onStart={startSession} />}
+          {tab === "programme" && (
+            <Programme program={program} programs={programs} zones={zones} ftp={cfg.ftp} live={live}
+              onSelectProgram={setProgramStart} onSaveProgram={saveProgram} onDeleteProgram={deleteProgram}
+              weekPlan={weekPlan} onSetMode={setBikeMode} onSetHours={setBikeHours} onToggleDone={toggleEnduranceDone}
+              onSetDay={setSessionDay} onResetDays={resetSchedule} onStart={startSession} />
+          )}
           {tab === "fitness" && <Fitness pmc={pmc} live={live} />}
           {tab === "nutri" && <Nutri plans={mealPlans} live={live} onSavePlan={saveMealPlan} onDeletePlan={deleteMealPlan} />}
         </main>
@@ -848,7 +724,7 @@ export default function App() {
 }
 
 /* ============================ TABLEAU DE BORD =========================== */
-function Dashboard({ cfg, weight, wkg, live, activities, metrics, onSaveMetric, onImportMetrics, weekCount, totalCount, weekTonnage, monthPRs, active, onStart, onResume }) {
+function Dashboard({ cfg, weight, wkg, live, activities, metrics, onSaveMetric, onImportMetrics, weekCount, totalCount, weekTonnage, monthPRs, active, onStart, onResume, days }) {
   const dGoal = daysBetween(cfg.event.date);
   const dNear = daysBetween(cfg.nearEvent.date);
   const kgToGoal = r05(weight - cfg.goalWeight);
@@ -936,7 +812,7 @@ function Dashboard({ cfg, weight, wkg, live, activities, metrics, onSaveMetric, 
       {/* Lancement rapide */}
       <SectionTitle>Lancement rapide</SectionTitle>
       <div className="flex flex-col gap-3">
-        {DAYS.map((d) => (
+        {days.map((d) => (
           <button key={d.id} onClick={() => onStart(d)} className="w-full text-left" style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "13px 14px 13px 16px", position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: C.blue }} />
             <div className="flex items-center justify-between">
@@ -1072,7 +948,7 @@ function CompTile({ label, value, delta, good }) {
 function UploadIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 16V4M7 9l5-5 5 5M5 20h14" stroke={C.blueHi} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
 
 /* ============================== SÉANCE ================================= */
-function Session({ active, upd, onStartAny, onFinish, onCancel }) {
+function Session({ active, upd, onStartAny, onFinish, onCancel, days }) {
   if (!active) {
     return (
       <div className="px-4 pt-5">
@@ -1082,7 +958,7 @@ function Session({ active, upd, onStartAny, onFinish, onCancel }) {
         </div>
         <SectionTitle>Démarrer</SectionTitle>
         <div className="flex flex-col gap-3">
-          {DAYS.map((d) => (
+          {days.map((d) => (
             <button key={d.id} onClick={() => onStartAny(d)} className="w-full text-left" style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div><div style={{ fontFamily: FD, fontSize: 19, fontWeight: 600 }}>{d.title} · {d.subtitle}</div><div style={{ color: C.mut2, fontSize: 12 }}>{d.focus}</div></div>
               <div style={{ width: 32, height: 32, borderRadius: 8, background: C.blue, display: "grid", placeItems: "center" }}><Play /></div>
@@ -1362,30 +1238,29 @@ function Sparkline({ series }) {
 /* ============================= PROGRAMME =============================== */
 /* ---- Recompose une séance vélo dehors selon la durée choisie ---- */
 function outdoorSteps(b, mins) {
-  if (b.id === "b3") {
-    const bosses = Math.min(5, Math.max(2, Math.round(mins / 60)));
-    return [
-      { t: fmtHM(mins), w: "195–220 W · Z2", d: "Endurance continue, cadence souple" },
-      { t: `${bosses} bosses`, w: "240–290 W · Z3–Z4", d: "Réparties sur le parcours, en tempo/seuil" },
-      { t: "sur > 2 h", w: "60–90 g glucides/h", d: "Ravitaillement régulier" },
-    ];
+  const a = b.outAuto;
+  if (!a) return b.out || b.ht || []; // pas de règle dans le JSON -> déroulé fixe
+  if (a.mode === "long") {
+    const h = a.hills || {};
+    const n = Math.min(h.max ?? 5, Math.max(h.min ?? 2, Math.round((mins / 60) * (h.perHour ?? 1))));
+    const steps = [{ t: fmtHM(mins), w: a.body.w, d: a.body.d }];
+    if (h.w) steps.push({ t: `${n} bosses`, w: h.w, d: h.d });
+    if (a.tail) steps.push({ t: a.tail.t, w: a.tail.w, d: a.tail.d });
+    return steps;
   }
-  const wu = 15, cd = 10;
-  const core = b.id === "b1"
-    ? { t: "3 × 10 min", w: "285–300 W · RPE 7–8", d: "Bosse régulière ; récup 5 min en descente", used: 40 }
-    : { t: "5 × 3 min", w: "à bloc maîtrisé · RPE 9", d: "Bosse de 3–5 min ; récup 3 min en descente", used: 27 };
-  const filler = Math.max(0, mins - wu - cd - core.used);
+  const wu = a.warmup?.min ?? 15, cd = a.cooldown?.min ?? 10;
+  const filler = Math.max(0, mins - wu - cd - (a.core?.min ?? 0));
   const steps = [
-    { t: `${wu} min`, w: "échauffement", d: "Montée progressive + accélérations" },
-    { t: core.t, w: core.w, d: core.d },
+    { t: `${wu} min`, w: a.warmup.w, d: a.warmup.d },
+    { t: a.core.t, w: a.core.w, d: a.core.d },
   ];
-  if (filler >= 10) steps.push({ t: fmtHM(filler), w: "195–220 W · Z2", d: "Endurance pour compléter la sortie" });
-  steps.push({ t: `${cd} min`, w: "roue libre", d: "Retour au calme" });
+  if (a.filler && filler >= (a.filler.minMin ?? 10)) steps.push({ t: fmtHM(filler), w: a.filler.w, d: a.filler.d });
+  steps.push({ t: `${cd} min`, w: a.cooldown.w, d: a.cooldown.d });
   return steps;
 }
 
-function WeekBoard({ getDay, isDone, moving, setMoving, onMove, onReset }) {
-  const movingLabel = moving ? (ALL_SESSIONS.find((s) => s.id === moving)?.label || "") : "";
+function WeekBoard({ sessions, getDay, isDone, moving, setMoving, onMove, onReset }) {
+  const movingLabel = moving ? (sessions.find((s) => s.id === moving)?.label || "") : "";
   return (
     <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: 8 }}>
       {moving && (
@@ -1395,7 +1270,7 @@ function WeekBoard({ getDay, isDone, moving, setMoving, onMove, onReset }) {
         </div>
       )}
       {DAY_LABELS.map((d, di) => {
-        const items = ALL_SESSIONS.filter((s) => getDay(s.id) === di);
+        const items = sessions.filter((s) => getDay(s.id) === di);
         return (
           <div key={d} onClick={() => moving && onMove(moving, di)}
             style={{ display: "flex", alignItems: "center", gap: 8, padding: 8, borderBottom: di < 6 ? `1px solid ${C.line}` : "none", borderRadius: 8, background: moving ? "rgba(47,123,255,0.06)" : "transparent", cursor: moving ? "pointer" : "default" }}>
@@ -1437,80 +1312,160 @@ function DurChips({ options, value, onChange }) {
 
 function DayBadge({ day }) { return <span style={{ fontFamily: FD, letterSpacing: "0.08em", fontSize: 10, color: C.mut, background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 6, padding: "2px 6px" }}>{day.toUpperCase()}</span>; }
 
-function Programme({ weekPlan, onSetMode, onSetHours, onToggleDone, onSetDay, onResetDays, onStart }) {
+function Programme({ program, programs, zones, ftp, live, onSelectProgram, onSaveProgram, onDeleteProgram,
+  weekPlan, onSetMode, onSetHours, onToggleDone, onSetDay, onResetDays, onStart }) {
   const [open, setOpen] = useState({ b1: true });
   const [moving, setMoving] = useState(null);
+  const [showJson, setShowJson] = useState(false);
+  const [jsonText, setJsonText] = useState("");
+  const [jsonMsg, setJsonMsg] = useState("");
+  const list = programList(programs);
+  const stored = programs && programs.some((p) => p.start === program.start);
   const tog = (id) => setOpen((o) => ({ ...o, [id]: !o[id] }));
-  const getDay = (id) => (weekPlan[id]?.day != null ? weekPlan[id].day : DEFAULT_DAYS[id]);
+  const getDay = (id) => (weekPlan[id]?.day != null ? weekPlan[id].day : program.defaultDays[id] ?? 0);
   const isDone = (id) => !!weekPlan[id]?.done;
   const move = (id, day) => { onSetDay(id, day); setMoving(null); };
+
+  const copyProgram = async () => {
+    const txt = JSON.stringify(program, null, 2);
+    try {
+      await navigator.clipboard.writeText(txt);
+      setJsonMsg("Programme actuel copié ✓");
+    } catch (e) {
+      setJsonText(txt); setShowJson(true);
+      setJsonMsg("Copie auto impossible — le JSON est affiché ci-dessous, copie-le à la main.");
+    }
+    setTimeout(() => setJsonMsg(""), 4000);
+  };
+  const saveJson = async () => {
+    let obj; try { obj = JSON.parse(jsonText); } catch (e) { setJsonMsg("JSON invalide : " + e.message); return; }
+    const err = validateProgram(obj); if (err) { setJsonMsg("Programme refusé : " + err); return; }
+    const ok = await onSaveProgram(obj);
+    setJsonText(""); setShowJson(false);
+    setJsonMsg(ok ? (live ? "Programme enregistré en base ✓" : "Programme chargé (démo — non persisté sans backend)") : "Échec de l'enregistrement backend.");
+    setTimeout(() => setJsonMsg(""), 5000);
+  };
+  const removeProgram = async () => {
+    if (!window.confirm(`Supprimer le programme « ${program.weekLabel} » ? Cette action est définitive.`)) return;
+    await onDeleteProgram(program.start);
+    setJsonMsg("Programme supprimé."); setTimeout(() => setJsonMsg(""), 4000);
+  };
+
   return (
     <div className="px-4 pt-5">
-      <ScreenHead title="Programme" sub={`Semaine · ${BLOCK.phase}`} />
+      <ScreenHead title="Programme" sub={`${program.weekLabel} · ${program.block.phase}`} />
+
+      {/* Sélecteur de semaine (visible dès qu'il y a plusieurs programmes en base) */}
+      {list.length > 1 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <span style={{ fontFamily: FD, fontSize: 10.5, letterSpacing: "0.1em", color: C.mut2 }}>SEMAINE</span>
+          <select value={program.start} onChange={(e) => onSelectProgram(e.target.value)}
+            style={{ flex: 1, background: C.card, color: C.text, border: `1px solid ${C.line}`, borderRadius: 9, padding: "7px 10px", fontFamily: FD, fontSize: 13 }}>
+            {list.map((p) => <option key={p.start} value={p.start}>{p.weekLabel}</option>)}
+          </select>
+        </div>
+      )}
 
       {/* Bandeau bloc */}
       <div style={{ background: `linear-gradient(180deg, ${C.cardHi}, ${C.card})`, border: `1px solid ${C.line}`, borderRadius: 14, padding: 14, position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${C.blue}, transparent)` }} />
         <div style={{ fontFamily: FD, letterSpacing: "0.2em", fontSize: 11, color: C.blueHi }}>BLOC EN COURS</div>
-        <div style={{ fontFamily: FD, fontSize: 22, fontWeight: 600, lineHeight: 1.05 }}>{BLOCK.name}</div>
-        <div style={{ color: C.mut, fontSize: 12.5, marginTop: 4, lineHeight: 1.45 }}>{BLOCK.note}</div>
+        <div style={{ fontFamily: FD, fontSize: 22, fontWeight: 600, lineHeight: 1.05 }}>{program.block.name}</div>
+        <div style={{ color: C.mut, fontSize: 12.5, marginTop: 4, lineHeight: 1.45 }}>{program.block.note}</div>
         <div className="flex gap-2 mt-3">
-          <CountChip n={BLOCK.counts.velo} l="VÉLO" c={C.orange} />
-          <CountChip n={BLOCK.counts.cap} l="COURSE" c={C.green} />
-          <CountChip n={BLOCK.counts.muscu} l="MUSCU" c={C.blueHi} />
+          <CountChip n={program.block.counts.velo} l="VÉLO" c={C.orange} />
+          <CountChip n={program.block.counts.cap} l="COURSE" c={C.green} />
+          <CountChip n={program.block.counts.muscu} l="MUSCU" c={C.blueHi} />
         </div>
       </div>
 
       {/* Planning déplaçable */}
       <SectionTitle>Ma semaine · déplace les séances</SectionTitle>
-      <WeekBoard getDay={getDay} isDone={isDone} moving={moving} setMoving={setMoving} onMove={move} onReset={onResetDays} />
+      <WeekBoard sessions={program.sessions} getDay={getDay} isDone={isDone} moving={moving} setMoving={setMoving} onMove={move} onReset={onResetDays} />
       <div style={{ color: C.mut2, fontSize: 11.5, marginTop: 6, lineHeight: 1.4 }}>
         Touche une séance puis un jour pour la déplacer. Dense mais modulable : si la fatigue monte, allège la course d'abord (le vélo reste prioritaire dans ce bloc).
       </div>
 
       {/* VÉLO */}
-      <SectionTitle>Vélo · développement FTP</SectionTitle>
-      <ZonesRef />
-      {BIKE.map((b) => (
-        <BikeCard key={b.id} b={b} mode={weekPlan[b.id]?.mode || b.defaultMode} done={isDone(b.id)} day={DAY_LABELS[getDay(b.id)]}
-          hours={weekPlan[b.id]?.hours || bikeDurDefault(b.id)}
-          onSetMode={(m) => onSetMode(b.id, m)} onSetHours={(h) => onSetHours(b.id, h)} onToggleDone={() => onToggleDone(b.id)}
-          open={!!open[b.id]} onToggle={() => tog(b.id)} />
-      ))}
+      {program.bike.length > 0 && (
+        <>
+          <SectionTitle>Vélo · développement FTP</SectionTitle>
+          <ZonesRef zones={zones} ftp={ftp} />
+          {program.bike.map((b) => (
+            <BikeCard key={b.id} b={b} mode={weekPlan[b.id]?.mode || b.defaultMode} done={isDone(b.id)} day={DAY_LABELS[getDay(b.id)]}
+              hours={weekPlan[b.id]?.hours || bikeDurDefault(program, b.id)} bikeDur={program.bikeDur}
+              onSetMode={(m) => onSetMode(b.id, m)} onSetHours={(h) => onSetHours(b.id, h)} onToggleDone={() => onToggleDone(b.id)}
+              open={!!open[b.id]} onToggle={() => tog(b.id)} />
+          ))}
+        </>
+      )}
 
       {/* COURSE */}
-      <SectionTitle>Course à pied · allures cibles</SectionTitle>
-      <PacesRef />
-      {RUN.map((r) => (
-        <RunCard key={r.id} r={r} done={isDone(r.id)} day={DAY_LABELS[getDay(r.id)]} onToggleDone={() => onToggleDone(r.id)} open={!!open[r.id]} onToggle={() => tog(r.id)} />
-      ))}
+      {program.run.length > 0 && (
+        <>
+          <SectionTitle>Course à pied · allures cibles</SectionTitle>
+          {program.paces.length > 0 && <PacesRef paces={program.paces} />}
+          {program.run.map((r) => (
+            <RunCard key={r.id} r={r} done={isDone(r.id)} day={DAY_LABELS[getDay(r.id)]} onToggleDone={() => onToggleDone(r.id)} open={!!open[r.id]} onToggle={() => tog(r.id)} />
+          ))}
+        </>
+      )}
 
       {/* MUSCU */}
-      <SectionTitle>Musculation</SectionTitle>
-      <div className="flex flex-col gap-3 pb-2">
-        {DAYS.map((d) => (
-          <button key={d.id} onClick={() => onStart(d)} className="w-full text-left" style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "11px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative", overflow: "hidden" }}>
-            <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: C.blue }} />
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ fontFamily: FD, fontSize: 18, fontWeight: 600, lineHeight: 1.05 }}>{d.title} · {d.subtitle}</div>
-                <DayBadge day={DAY_LABELS[getDay(d.id)]} />
-              </div>
-              <div style={{ color: C.mut2, fontSize: 12 }}>{d.focus}</div>
-            </div>
-            <div style={{ width: 30, height: 30, borderRadius: 8, background: C.blue, display: "grid", placeItems: "center" }}><Play /></div>
-          </button>
-        ))}
+      {program.strength.length > 0 && (
+        <>
+          <SectionTitle>Musculation</SectionTitle>
+          <div className="flex flex-col gap-3 pb-2">
+            {program.strength.map((d) => (
+              <button key={d.id} onClick={() => onStart(d)} className="w-full text-left" style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "11px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: C.blue }} />
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ fontFamily: FD, fontSize: 18, fontWeight: 600, lineHeight: 1.05 }}>{d.title} · {d.subtitle}</div>
+                    <DayBadge day={DAY_LABELS[getDay(d.id)]} />
+                  </div>
+                  <div style={{ color: C.mut2, fontSize: 12 }}>{d.focus}</div>
+                </div>
+                <div style={{ width: 30, height: 30, borderRadius: 8, background: C.blue, display: "grid", placeItems: "center" }}><Play /></div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Gérer le programme — désormais une donnée, plus du code */}
+      <SectionTitle>Gérer le programme</SectionTitle>
+      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: 14, marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: C.mut, lineHeight: 1.45 }}>
+          Le programme est une <b>donnée</b> {live ? "enregistrée en base" : "— en démo, non persistée sans backend"} : une semaine = un programme.
+          Colle ici le JSON que je te fournis, plus besoin de modifier le code.
+          {!stored && <> Actuellement affiché : le <b>programme embarqué par défaut</b> (rien en base pour cette semaine).</>}
+          <br />Les <b>zones et la FTP restent pilotées par Strava</b> — ne les mets pas dans le JSON.
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+          <button onClick={copyProgram} style={{ flex: "1 1 auto", padding: "9px 10px", borderRadius: 9, border: `1px solid ${C.line2}`, background: C.bg2, color: C.blueHi, fontFamily: FD, fontSize: 11.5, letterSpacing: "0.05em" }}>COPIER LE PROGRAMME ACTUEL</button>
+          <button onClick={() => setShowJson((v) => !v)} style={{ flex: "1 1 auto", padding: "9px 10px", borderRadius: 9, border: `1px solid ${C.line2}`, background: C.bg2, color: C.blueHi, fontFamily: FD, fontSize: 11.5, letterSpacing: "0.05em" }}>{showJson ? "MASQUER" : "CHARGER UN PROGRAMME"}</button>
+          {stored && <button onClick={removeProgram} style={{ flex: "1 1 auto", padding: "9px 10px", borderRadius: 9, border: `1px solid ${C.line2}`, background: C.bg2, color: C.red, fontFamily: FD, fontSize: 11.5, letterSpacing: "0.05em" }}>SUPPRIMER</button>}
+        </div>
+        {showJson && (
+          <div style={{ marginTop: 10 }}>
+            <textarea value={jsonText} onChange={(e) => setJsonText(e.target.value)} spellCheck={false}
+              placeholder='Colle ici le programme au format JSON (objet { start, weekLabel, block, strength, bike, run… })'
+              style={{ width: "100%", minHeight: 130, boxSizing: "border-box", background: C.bg2, color: C.text, border: `1px solid ${C.line}`, borderRadius: 10, padding: 10, fontFamily: "monospace", fontSize: 11.5, resize: "vertical" }} />
+            <button onClick={saveJson} style={{ width: "100%", marginTop: 8, padding: "11px 0", borderRadius: 11, background: C.green, color: "#04120C", fontFamily: FD, fontSize: 14, letterSpacing: "0.08em", fontWeight: 700 }}>VALIDER ET ENREGISTRER</button>
+          </div>
+        )}
+        {jsonMsg && <div style={{ textAlign: "center", fontSize: 12, color: /refusé|invalide|Échec|impossible/.test(jsonMsg) ? C.red : C.green, marginTop: 8, fontFamily: FD }}>{jsonMsg}</div>}
       </div>
     </div>
   );
 }
 
-function BikeCard({ b, mode, done, day, hours, onSetMode, onSetHours, onToggleDone, open, onToggle }) {
+function BikeCard({ b, mode, done, day, hours, bikeDur, onSetMode, onSetHours, onToggleDone, open, onToggle }) {
   const out = mode === "out";
   const steps = out ? outdoorSteps(b, hours) : b.ht;
   const durText = out ? fmtHM(hours) : b.dur;
-  const durOptions = b.tag === "LONGUE" ? BIKE_DUR.long : BIKE_DUR.specific;
+  const durOptions = b.tag === "LONGUE" ? bikeDur.long : bikeDur.specific;
   return (
     <div className="mb-3" style={{ background: C.card, border: `1px solid ${done ? C.greenLine : C.line}`, borderRadius: 14, padding: 13, position: "relative", overflow: "hidden" }}>
       <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: C.orange }} />
@@ -1591,23 +1546,31 @@ function StepRow({ time, target, desc, color }) {
 function SegBtn({ active, onClick, label }) {
   return <button onClick={onClick} style={{ flex: 1, fontFamily: FD, letterSpacing: "0.04em", fontSize: 13, padding: "7px 0", borderRadius: 8, color: active ? "#fff" : C.mut, background: active ? C.orange : "transparent", boxShadow: active ? `0 4px 12px rgba(255,138,61,0.3)` : "none" }}>{label}</button>;
 }
-function ZonesRef() {
+function ZonesRef({ zones, ftp }) {
+  const fromStrava = zones[0]?.src === "strava";
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: 12 }}>
-      {ZONES_W.map((z) => (
+    <>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: 6 }}>
+      {zones.map((z) => (
         <div key={z.z} style={{ background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 9, padding: "6px 8px" }}>
           <div style={{ fontFamily: FD, fontSize: 12, fontWeight: 600, color: C.orange }}>{z.z} <span style={{ color: C.mut, fontWeight: 400 }}>{z.l}</span></div>
           <div style={{ fontFamily: FD, fontSize: 13, color: C.text }}>{z.r}</div>
         </div>
       ))}
     </div>
+    <div style={{ fontSize: 10.5, color: C.mut2, marginBottom: 12 }}>
+      {fromStrava
+        ? "Zones de puissance lues dans ton compte Strava."
+        : `Zones recalculées sur ta FTP Strava (${ftp} W), modèle Coggan & Allen. Elles ne sont pas figées dans le programme : elles suivent ta FTP.`}
+    </div>
+    </>
   );
 }
-function PacesRef() {
+function PacesRef({ paces }) {
   return (
     <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 6, marginBottom: 12 }}>
-      {PACES.map((p, i) => (
-        <div key={p.k} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 8px", borderBottom: i < PACES.length - 1 ? `1px solid ${C.line}` : "none" }}>
+      {paces.map((p, i) => (
+        <div key={p.k} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 8px", borderBottom: i < paces.length - 1 ? `1px solid ${C.line}` : "none" }}>
           <div style={{ minWidth: 0, paddingRight: 8 }}><div style={{ fontSize: 13.5, fontWeight: 600 }}>{p.k}</div><div style={{ color: C.mut2, fontSize: 11.5 }}>{p.n}</div></div>
           <div style={{ fontFamily: FD, fontSize: 16, fontWeight: 600, color: C.green, whiteSpace: "nowrap" }}>{p.v}</div>
         </div>
