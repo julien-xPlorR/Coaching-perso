@@ -621,6 +621,7 @@ export default function App() {
         const rec = { id: `${a.dayId}-${Date.now()}`, dayId: a.dayId, title: a.title, subtitle: a.subtitle, date: a.date, durationSec, sets, prExercises: prs, volumeByMuscle: volumeByMuscle(sets) };
         setHistory((h) => [...h, rec].sort((x, y) => new Date(x.date) - new Date(y.date)));
         if (live) { apiPost("/api/sessions", rec).catch(() => {}); }
+        savePlan({ ...weekPlan, [a.dayId]: { ...(weekPlan[a.dayId] || {}), done: true } });
       }
     }
     setActive(null); setTab("history");
@@ -1417,19 +1418,25 @@ function Programme({ program, programs, zones, ftp, live, onSelectProgram, onSav
         <>
           <SectionTitle>Musculation</SectionTitle>
           <div className="flex flex-col gap-3 pb-2">
-            {program.strength.map((d) => (
-              <button key={d.id} onClick={() => onStart(d)} className="w-full text-left" style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "11px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative", overflow: "hidden" }}>
-                <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: C.blue }} />
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ fontFamily: FD, fontSize: 18, fontWeight: 600, lineHeight: 1.05 }}>{d.title} · {d.subtitle}</div>
-                    <DayBadge day={DAY_LABELS[getDay(d.id)]} />
+            {program.strength.map((d) => {
+              const done = isDone(d.id);
+              return (
+                <div key={d.id} style={{ background: C.card, border: `1px solid ${done ? C.greenLine : C.line}`, borderRadius: 12, padding: "11px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, position: "relative", overflow: "hidden" }}>
+                  <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: done ? C.green : C.blue }} />
+                  <button onClick={() => onStart(d)} className="text-left" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", padding: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ fontFamily: FD, fontSize: 18, fontWeight: 600, lineHeight: 1.05, color: done ? C.green : C.text, textDecoration: done ? "line-through" : "none" }}>{d.title} · {d.subtitle}</div>
+                      <DayBadge day={DAY_LABELS[getDay(d.id)]} />
+                    </div>
+                    <div style={{ color: C.mut2, fontSize: 12 }}>{d.focus}</div>
+                  </button>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <button onClick={() => onToggleDone(d.id)} title="Marquer comme fait"><CheckBox on={done} /></button>
+                    <button onClick={() => onStart(d)} style={{ width: 30, height: 30, borderRadius: 8, background: done ? C.green : C.blue, display: "grid", placeItems: "center" }}><Play /></button>
                   </div>
-                  <div style={{ color: C.mut2, fontSize: 12 }}>{d.focus}</div>
                 </div>
-                <div style={{ width: 30, height: 30, borderRadius: 8, background: C.blue, display: "grid", placeItems: "center" }}><Play /></div>
-              </button>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
