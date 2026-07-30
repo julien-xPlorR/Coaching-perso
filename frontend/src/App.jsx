@@ -247,11 +247,11 @@ const fmtQty = (q) => (Math.round(q) === q ? String(q) : String(Math.round(q * 1
 
 // Classification fine des ingrédients par rayon (pour la feuille Courses, façon modèle)
 const FINE_CAT = {
-  "Filets de maquereau": "VIANDE", "Filet de poulet": "VIANDE", "Filet de daurade": "VIANDE", "Steak haché 5%": "VIANDE", "Sardines fraîches": "VIANDE", "Sardines à l'huile d'olive": "VIANDE", "Thon au naturel": "VIANDE", "Jambon blanc supérieur": "VIANDE", "Pavé de saumon": "VIANDE",
+  "Filets de maquereau": "VIANDE", "Filet de poulet": "VIANDE", "Filet de daurade": "VIANDE", "Steak haché 5%": "VIANDE", "Sardines fraîches": "VIANDE", "Sardines à l'huile d'olive": "VIANDE", "Thon au naturel": "VIANDE", "Jambon blanc supérieur": "VIANDE", "Pavé de saumon": "VIANDE", "Brochette de poulet": "VIANDE", "Brochette de boeuf": "VIANDE", "Pilon de poulet (sans peau)": "VIANDE", "Merguez": "VIANDE", "Chipolata": "VIANDE", "Araignée de porc": "VIANDE",
   "Œufs": "LAIT", "Lait": "LAIT", "Fromage blanc de vache": "LAIT", "Skyr de vache": "LAIT", "Yaourt nature (vache)": "LAIT", "Mozzarella": "LAIT", "Feta": "LAIT", "Comté": "LAIT", "Parmesan": "LAIT",
-  "Flocons d'avoine": "CEREAL", "Flocons d'avoine fins": "CEREAL", "Quinoa": "CEREAL", "Riz complet": "CEREAL", "Riz blanc": "CEREAL", "Semoule complète": "CEREAL", "Boulgour": "CEREAL", "Pâtes complètes": "CEREAL", "Pâtes blanches": "CEREAL",
+  "Flocons d'avoine": "CEREAL", "Flocons d'avoine fins": "CEREAL", "Quinoa": "CEREAL", "Riz complet": "CEREAL", "Riz blanc": "CEREAL", "Semoule complète": "CEREAL", "Boulgour": "CEREAL", "Pâtes complètes": "CEREAL", "Pâtes blanches": "CEREAL", "Boulgour cuit": "CEREAL",
   "Pois chiches cuits": "LEGUM", "Lentilles cuites": "LEGUM", "Lentilles corail": "LEGUM",
-  "Courgette": "LEG", "Poivron": "LEG", "Tomates": "LEG", "Haricots verts": "LEG", "Salade verte": "LEG", "Roquette": "LEG", "Concombre": "LEG", "Oignon rouge": "LEG", "Aubergine": "LEG", "Ail": "LEG", "Pommes de terre": "LEG", "Patate douce": "LEG", "Épinards frais": "LEG", "Oignon": "LEG", "Avocat": "LEG",
+  "Courgette": "LEG", "Poivron": "LEG", "Tomates": "LEG", "Haricots verts": "LEG", "Salade verte": "LEG", "Roquette": "LEG", "Concombre": "LEG", "Oignon rouge": "LEG", "Aubergine": "LEG", "Ail": "LEG", "Pommes de terre": "LEG", "Patate douce": "LEG", "Épinards frais": "LEG", "Oignon": "LEG", "Avocat": "LEG", "Maïs doux": "LEG",
   "Fruits rouges": "FRUIT", "Citron": "FRUIT", "Banane": "FRUIT", "Pêche": "FRUIT", "Nectarine": "FRUIT", "Abricots": "FRUIT", "Melon": "FRUIT", "Figues": "FRUIT", "Poire": "FRUIT", "Pomme": "FRUIT",
   "Basilic": "HERB", "Menthe": "HERB", "Persil": "HERB",
   "Pain complet au levain": "BOUL", "Galette complète (blé)": "BOUL", "Pain blanc / baguette": "BOUL", "Pain d'épices": "BOUL",
