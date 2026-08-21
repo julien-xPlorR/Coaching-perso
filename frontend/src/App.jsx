@@ -272,7 +272,7 @@ const FINE_CAT = {
   // Légumineuses & protéines végétales
   "Pois chiches cuits": "LEGUM", "Lentilles cuites": "LEGUM", "Lentilles corail": "LEGUM", "Lentilles vertes": "LEGUM", "Lentilles beluga": "LEGUM", "Lentilles vertes cuites": "LEGUM",
   "Haricots rouges": "LEGUM", "Haricots blancs (cannellini)": "LEGUM", "Haricots noirs": "LEGUM", "Flageolets": "LEGUM", "Pois cassés": "LEGUM", "Fèves sèches": "LEGUM",
-  "Edamame": "LEGUM", "Tofu ferme": "LEGUM", "Tofu soyeux": "LEGUM", "Tempeh": "LEGUM", "Protéines de soja texturées": "LEGUM", "Haricots azuki": "LEGUM",
+  "Haricots azuki": "LEGUM",
   // Légumes frais
   "Courgette": "LEG", "Poivron": "LEG", "Tomates": "LEG", "Haricots verts": "LEG", "Salade verte": "LEG", "Roquette": "LEG",
   "Concombre": "LEG", "Oignon rouge": "LEG", "Aubergine": "LEG", "Ail": "LEG", "Pommes de terre": "LEG", "Patate douce": "LEG",
@@ -308,7 +308,7 @@ const FINE_CAT = {
   "Noix de pécan": "EPI", "Pistaches": "EPI", "Noix du Brésil": "EPI", "Graines de courge": "EPI", "Graines de tournesol": "EPI", "Graines de sésame": "EPI",
   "Graines de chanvre": "EPI", "Pignons de pin": "EPI", "Purée de noisette": "EPI", "Tahin (purée de sésame)": "EPI", "Huile de colza": "EPI", "Huile de lin": "EPI",
   "Huile de noix": "EPI", "Olives vertes": "EPI", "Câpres": "EPI", "Cornichons": "EPI", "Tomates séchées": "EPI", "Concentré de tomate": "EPI",
-  "Passata (coulis de tomate)": "EPI", "Vinaigre balsamique": "EPI", "Moutarde de Dijon": "EPI", "Lait d'amande": "EPI", "Boisson au soja": "EPI", "Boisson à l'avoine": "EPI",
+  "Passata (coulis de tomate)": "EPI", "Vinaigre balsamique": "EPI", "Moutarde de Dijon": "EPI", "Lait d'amande": "EPI", "Boisson à l'avoine": "EPI",
   "Chocolat noir 70%": "EPI", "Cacao en poudre non sucré": "EPI", "Levure maltée": "EPI", "Pruneaux": "EPI", "Figues sèches": "EPI", "Cranberries séchées": "EPI",
   "Sirop d'érable": "EPI", "Bouillon de légumes": "EPI", "Farine complète": "EPI", "Farine de sarrasin": "EPI", "Flocons de noix de coco": "EPI",
 };
